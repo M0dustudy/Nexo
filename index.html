@@ -428,12 +428,12 @@ const call=async(action,data={})=>{
  if(!response.ok)throw Error(json.error||"Operação não autorizada");
  return json;
 };
-const access=document.createElement("button");access.type="button";access.className="nexo-access-entry";access.textContent="Acesso à administração";
+const access=document.createElement("button");access.type="button";access.className="nexo-access-entry";access.textContent=ready()?"Acesso à administração":"Administração indisponível";
 const sidebar=document.querySelector(".sidebar");if(sidebar)sidebar.append(access);
 const dialog=document.createElement("dialog");dialog.className="nexo-access-dialog";dialog.innerHTML='<h2>Acesso restrito</h2><p>Entre com sua conta administrativa para gerenciar imagens. Visitantes não podem publicar conteúdo.</p><form method="dialog" id="nexo-admin-login"><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button><button type="button" class="nexo-dialog-close">Cancelar</button><p role="status" id="nexo-login-status"></p></form>';
 document.body.append(dialog);
-dialog.querySelector(".nexo-dialog-close").onclick=()=>dialog.close();
-access.onclick=()=>{if(admin){editing=!editing;access.textContent=editing?"Desativar administração":"Ativar administração";renderLessonsIfOpen()}else dialog.showModal()};
+dialog.querySelector(".nexo-dialog-close").onclick=()=>{dialog.close();if(!ready())access.textContent="Administração indisponível"};
+access.onclick=()=>{if(admin){editing=!editing;access.textContent=editing?"Desativar administração":"Ativar administração";renderLessonsIfOpen()}else if(!ready()){dialog.showModal();const form=dialog.querySelector("#nexo-admin-login");form.hidden=true;const status=dialog.querySelector("#nexo-login-status");status.textContent="O modo administrador ainda não foi ativado: o NEXO não possui um servidor Supabase configurado. Não digite sua senha nesta tela. A ativação depende de um projeto Supabase exclusivo do NEXO.";access.textContent="Administração indisponível"}else{dialog.querySelector("#nexo-admin-login").hidden=false;dialog.querySelector("#nexo-login-status").textContent="";dialog.showModal()}};
 const renderLessonsIfOpen=()=>{if(document.getElementById("reading-area"))renderLessons()};
 dialog.querySelector("form").onsubmit=async e=>{
  e.preventDefault();const status=dialog.querySelector("#nexo-login-status");
