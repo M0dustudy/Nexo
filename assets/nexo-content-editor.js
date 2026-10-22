@@ -5,7 +5,7 @@ const rootUrl=cfg.url.replace(/\/$/,"");
 const api=rootUrl+"/rest/v1/nexo_editor_content";
 const bucket="nexo-lesson-images";
 const original=JSON.parse(JSON.stringify(lessons));
-let units=[],dlg=null,dirty=false;
+let units=[],dlg=null,dirty=false,expandedUnit=0,expandedBlock=-1;
 const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const token=()=>window.NEXO_ADMIN_TOKEN?.();
 const initial=()=>original.map(u=>({title:u.title,subtitle:u.subtitle,source:u.source,blocks:u.blocks.map(b=>({title:b[0],text:b[1],image:""})),question:u.check[0],answer:u.check[1]}));
@@ -23,6 +23,7 @@ async function load(){
 function mark(){dirty=true;if(dlg)dlg.querySelector("#nexo-editor-status").textContent="Alterações ainda não publicadas"}
 function close(){if(dirty&&!confirm("Descartar alterações não publicadas?"))return;dlg.close();dlg.remove();dlg=null}
 function swap(arr,a,b){if(b<0||b>=arr.length)return;[arr[a],arr[b]]=[arr[b],arr[a]];mark();draw()}
+function touchMove(handle,arr,index,selector){let active=false;handle.style.touchAction="none";handle.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse")return;active=true;handle.setPointerCapture(e.pointerId)});handle.addEventListener("pointermove",e=>{if(!active)return;const target=document.elementFromPoint(e.clientX,e.clientY)?.closest(selector);if(!target)return;const dest=Number(selector==="[data-unit]"?target.dataset.unit:target.dataset.block);if(dest!==index&&Number.isInteger(dest)){active=false;swap(arr,index,dest)}});handle.addEventListener("pointerup",()=>active=false);handle.addEventListener("pointercancel",()=>active=false)}
 function open(){
  if(!token()){alert("Ative o acesso administrativo para editar.");return}
  if(dlg){dlg.showModal();return}
@@ -34,9 +35,9 @@ function open(){
 }
 function draw(){
  const box=dlg.querySelector("#nexo-editor-units");
- box.innerHTML=units.map((u,i)=>'<section class="nexo-edit-unit" data-unit="'+i+'" draggable="true"><div class="nexo-edit-head"><h3>☰ Unidade '+(i+1)+'</h3><div><button data-up>↑</button><button data-down>↓</button><button data-delete>Excluir</button></div></div><label>Título<input data-field="title" value="'+esc(u.title)+'"></label><label>Apresentação<textarea data-field="subtitle">'+esc(u.subtitle)+'</textarea></label><h4>Assuntos · arraste para reordenar</h4><div class="nexo-edit-blocks">'+u.blocks.map((b,j)=>'<div class="nexo-edit-block" data-block="'+j+'" draggable="true"><div class="nexo-edit-head"><strong>☰ Assunto '+(j+1)+'</strong><div><button data-bup>↑</button><button data-bdown>↓</button><button data-bdelete>Excluir</button></div></div><label>Título<input data-bfield="title" value="'+esc(b.title)+'"></label><label>Explicação<textarea rows="5" data-bfield="text">'+esc(b.text)+'</textarea></label>'+(b.image?'<img src="'+esc(b.image)+'" alt="Ilustração do assunto" style="max-width:100%;max-height:220px;object-fit:contain;border-radius:10px"><button data-image-remove>Remover imagem</button>':'')+'<label>Adicionar imagem do celular<input type="file" accept="image/png,image/jpeg,image/webp" data-upload></label><p class="nexo-upload-status"></p></div>').join("")+'</div><button data-add>+ Novo assunto</button><h4>Verifique a compreensão</h4><label>Pergunta<input data-field="question" value="'+esc(u.question)+'"></label><label>Resposta comentada<textarea data-field="answer">'+esc(u.answer)+'</textarea></label></section>').join("");
+ box.innerHTML=units.map((u,i)=>'<section class="nexo-edit-unit" data-unit="'+i+'"><div class="nexo-edit-head"><button type="button" class="nexo-drag-handle" data-uhandle>⠿</button><button type="button" data-toggle class="nexo-unit-toggle">Unidade '+(i+1)+' · '+esc(u.title)+'</button><div><button data-up>↑</button><button data-down>↓</button><button data-delete>Excluir</button></div></div><div class="nexo-edit-details" '+(expandedUnit===i?"":"hidden")+'><label>Título<input data-field="title" value="'+esc(u.title)+'"></label><label>Apresentação<textarea data-field="subtitle">'+esc(u.subtitle)+'</textarea></label><h4>Assuntos · arraste para reordenar</h4><div class="nexo-edit-blocks">'+u.blocks.map((b,j)=>'<div class="nexo-edit-block" data-block="'+j+'"><div class="nexo-edit-head"><button type="button" class="nexo-drag-handle" data-bhandle>⠿</button><button type="button" data-btoggle class="nexo-unit-toggle">Assunto '+(j+1)+' · '+esc(b.title)+'</button><div><button data-bup>↑</button><button data-bdown>↓</button><button data-bdelete>Excluir</button></div></div><div class="nexo-edit-details" '+(expandedBlock===j?"":"hidden")+'><label>Título<input data-bfield="title" value="'+esc(b.title)+'"></label><label>Explicação<textarea rows="5" data-bfield="text">'+esc(b.text)+'</textarea></label>'+(b.image?'<img src="'+esc(b.image)+'" alt="Ilustração do assunto" style="max-width:100%;max-height:220px;object-fit:contain;border-radius:10px"><button data-image-remove>Remover imagem</button>':'')+'<label>Adicionar imagem do celular<input type="file" accept="image/png,image/jpeg,image/webp" data-upload></label><p class="nexo-upload-status"></p></div></div>').join("")+'</div><button data-add>+ Novo assunto</button><h4>Verifique a compreensão</h4><label>Pergunta<input data-field="question" value="'+esc(u.question)+'"></label><label>Resposta comentada<textarea data-field="answer">'+esc(u.answer)+'</textarea></label></div></section>').join("");
  box.querySelectorAll("[data-unit]").forEach(el=>{
- const i=+el.dataset.unit;
+ const i=+el.dataset.unit;el.querySelector("[data-toggle]").onclick=()=>{expandedUnit=expandedUnit===i?-1:i;expandedBlock=-1;draw()};touchMove(el.querySelector("[data-uhandle]"),units,i,"[data-unit]");
  el.querySelectorAll("[data-field]").forEach(field=>field.oninput=()=>{units[i][field.dataset.field]=field.value;mark()});
  el.querySelector("[data-up]").onclick=()=>swap(units,i,i-1);
  el.querySelector("[data-down]").onclick=()=>swap(units,i,i+1);
@@ -46,7 +47,7 @@ function draw(){
  el.addEventListener("dragover",e=>{if(e.dataTransfer.types.includes("text/nexo-unit"))e.preventDefault()});
  el.addEventListener("drop",e=>{const a=e.dataTransfer.getData("text/nexo-unit");if(a!==""){e.preventDefault();swap(units,+a,i)}});
  el.querySelectorAll("[data-block]").forEach(block=>{
- const j=+block.dataset.block;
+ const j=+block.dataset.block;block.querySelector("[data-btoggle]").onclick=()=>{expandedBlock=expandedBlock===j?-1:j;draw()};touchMove(block.querySelector("[data-bhandle]"),units[i].blocks,j,"[data-block]");
  block.querySelectorAll("[data-bfield]").forEach(field=>field.oninput=()=>{units[i].blocks[j][field.dataset.bfield]=field.value;mark()});
  block.querySelector("[data-bup]").onclick=()=>swap(units[i].blocks,j,j-1);
  block.querySelector("[data-bdown]").onclick=()=>swap(units[i].blocks,j,j+1);
