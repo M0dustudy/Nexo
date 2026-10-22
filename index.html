@@ -211,4 +211,61 @@ const nexoVisualPaths=["assets/visual-origens.svg","assets/visual-topicas.svg","
 const nexoVisualDescriptions=["Da investigação dos sintomas à construção do método psicanalítico","Comparação entre primeira e segunda tópicas freudianas","Perspectivas dinâmica, econômica e tópica","Conceito de pulsão e desenvolvimento"];
 const nexoVisualPriorRender=renderLessons;
 renderLessons=function(){nexoVisualPriorRender();const area=document.querySelector("#reading-area");if(!area)return;const idx=Math.max(0,Math.min(3,Number(window.lessonIndex)||0));const gallery=document.createElement("section");gallery.className="nexo-visual-gallery";gallery.setAttribute("aria-label","Aprenda com imagens");gallery.innerHTML='<div class="study-kicker">APRENDA VISUALMENTE</div><figure><a href="'+nexoVisualPaths[idx]+'" target="_blank" rel="noopener" class="nexo-visual-open" aria-label="Ampliar ilustração da unidade"><img loading="eager" src="'+nexoVisualPaths[idx]+'" alt="'+nexoVisualDescriptions[idx]+'"></a><figcaption>Toque na ilustração para ampliar e examinar os conceitos.</figcaption></figure>';const head=area.querySelector(".nexo-reading-head");if(head)head.insertAdjacentElement("afterend",gallery);else area.prepend(gallery);};
+</script><style id="nexo-premium-refresh">
+html,body{max-width:100%;overflow-x:hidden}
+#detail-content,.study-panel,.academic-hub,.hub-feature,.studio-input,.studio-sheet{min-width:0;max-width:100%}
+.studio-input,textarea,select{width:100%;box-sizing:border-box}
+textarea.studio-input{min-height:104px;resize:vertical;overflow-y:auto!important;white-space:pre-wrap}
+.hub-tabs{display:none!important}
+.hub-feature{overflow:hidden}
+.hub-feature .hub-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hub-feature .hub-actions button{min-width:0;white-space:normal}
+.nexo-course-outline{display:grid;gap:10px;margin:20px 0}
+.nexo-course-item{width:100%;display:flex;gap:14px;text-align:left;align-items:center;padding:18px;border:1px solid #685181;border-radius:18px;background:#332443;color:#f8f2ff}
+.nexo-course-item.active{border-color:#d7b8ff;background:#48315e}
+.nexo-course-item strong{display:block;font-size:1rem}
+.nexo-course-item small{display:block;color:#d5c5e2;margin-top:5px;line-height:1.45}
+.nexo-course-num{font-weight:800;color:#d5b6ff}
+.nexo-reading-progress{padding:12px 16px;background:#392a4d;border:1px solid #65517e;border-radius:14px;margin:16px 0}
+.sheet-visual{display:none!important}
+.studio-sheet{overflow-wrap:anywhere}
+@media(max-width:650px){.hub-pickers{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,100px)!important;gap:12px}.hub-pickers .hub-picker:last-child{grid-column:1/-1}.hub-feature .hub-actions{grid-template-columns:1fr 1fr}.studio-sheet{padding:22px 17px!important}.study-panel{padding:20px 16px!important}.reading p{line-height:1.75}}
+</style>
+<script id="nexo-premium-behavior">
+(function(){
+let saved=0;try{saved=Math.max(0,Math.min(lessons.length-1,Number(localStorage.getItem("nexo-last-lesson"))||0))}catch(e){}
+hubTab=saved;window.lessonIndex=saved;
+const oldAcademic=renderAcademic;
+renderAcademic=function(){
+oldAcademic();
+const root=document.getElementById("detail-content");
+const feature=root&&root.querySelector(".hub-feature");
+if(!feature)return;
+feature.innerHTML='<div class="study-kicker">PSICANÁLISE · 4º PERÍODO</div><h3>Seu percurso de estudo</h3><p>Uma sequência contínua de aulas. Retome de onde parou ou escolha um tema abaixo.</p><button class="hub-primary" id="nexo-resume" style="width:100%;padding:18px;margin:14px 0;border-radius:16px">Continuar estudando →</button><div class="nexo-course-outline">'+lessons.map((l,i)=>'<button class="nexo-course-item '+(i===hubTab?'active':'')+'" data-nexo-topic="'+i+'"><span class="nexo-course-num">'+String(i+1).padStart(2,"0")+'</span><span><strong>'+studioSafe(l.title)+'</strong><small>'+studioSafe(l.subtitle)+'</small></span></button>').join("")+'</div><div class="hub-actions"><button id="nexo-open-studio">Preparar minha prova</button><button id="nexo-open-library">Biblioteca</button></div>';
+feature.querySelector("#nexo-resume").onclick=()=>hubOpenReading();
+feature.querySelectorAll("[data-nexo-topic]").forEach(b=>b.onclick=()=>{hubTab=Number(b.dataset.nexoTopic);hubOpenReading()});
+feature.querySelector("#nexo-open-studio").onclick=()=>go("studio");
+feature.querySelector("#nexo-open-library").onclick=()=>go("biblioteca");
+};
+const oldReading=renderLessons;
+renderLessons=function(){
+oldReading();
+const area=document.getElementById("reading-area");if(!area)return;
+const marker=area.querySelector(".study-kicker");if(marker&&/^UNIDADE/.test(marker.textContent))marker.textContent="AULA "+String(window.lessonIndex+1).padStart(2,"0");
+area.querySelectorAll("button").forEach(b=>{b.textContent=b.textContent.replace("unidade","aula").replace("unidades","aulas")});
+const progress=document.createElement("div");progress.className="nexo-reading-progress";progress.textContent="Aula "+(window.lessonIndex+1)+" de "+lessons.length+" · Seu progresso é salvo neste dispositivo.";area.prepend(progress);
+try{localStorage.setItem("nexo-last-lesson",String(window.lessonIndex));hubTab=window.lessonIndex}catch(e){}
+};
+const oldStudio=renderStudio;
+renderStudio=function(){
+oldStudio();
+const root=document.getElementById("detail-content");if(!root)return;
+const sheet=root.querySelector(".studio-sheet");
+if(sheet){
+const visual=sheet.querySelector(".sheet-visual");if(visual)visual.remove();
+const headings=[...sheet.querySelectorAll("h3")];headings.forEach(h=>{if(h.textContent==="Treino orientado"){h.textContent="Preparação para os simulados"}});
+}
+root.querySelectorAll("textarea").forEach(t=>{t.style.height="auto";t.style.height=Math.max(104,t.scrollHeight+8)+"px";t.addEventListener("input",()=>{t.style.height="auto";t.style.height=Math.max(104,t.scrollHeight+8)+"px"})});
+};
+})();
 </script></body></html>
