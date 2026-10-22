@@ -430,11 +430,30 @@ const call=async(action,data={})=>{
 };
 const access=document.createElement("button");access.type="button";access.className="nexo-access-entry";access.textContent="Acesso à administração";
 const sidebar=document.querySelector(".sidebar");if(sidebar)sidebar.append(access);
-const dialog=document.createElement("dialog");dialog.className="nexo-access-dialog";dialog.innerHTML='<h2>Acesso restrito</h2><p>Entre com sua conta administrativa para gerenciar imagens. Visitantes não podem publicar conteúdo.</p><form method="dialog" id="nexo-admin-login"><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button><button type="button" class="nexo-dialog-close">Cancelar</button><p role="status" id="nexo-login-status"></p></form>';
+const dialog=document.createElement("dialog");dialog.className="nexo-access-dialog";dialog.innerHTML='<h2>Acesso restrito</h2><p>Entre com sua conta administrativa para gerenciar imagens. Visitantes não podem publicar conteúdo.</p><form method="dialog" id="nexo-admin-login"><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button><button type="button" id="nexo-admin-signup">Criar minha conta</button><button type="button" id="nexo-admin-reset">Recuperar senha</button><button type="button" class="nexo-dialog-close">Cancelar</button><p role="status" id="nexo-login-status"></p></form>';
 document.body.append(dialog);
 dialog.querySelector(".nexo-dialog-close").onclick=()=>dialog.close();
 access.onclick=()=>{if(admin){editing=!editing;access.textContent=editing?"Desativar administração":"Ativar administração";renderLessonsIfOpen()}else{dialog.querySelector("#nexo-admin-login").hidden=false;dialog.querySelector("#nexo-login-status").textContent="";dialog.showModal()}};
 const renderLessonsIfOpen=()=>{if(document.getElementById("reading-area"))renderLessons()};
+const adminForm=dialog.querySelector("#nexo-admin-login");
+const adminStatus=dialog.querySelector("#nexo-login-status");
+const authAction=async(path,payload)=>{
+ const res=await fetch(endpoint()+path,{method:"POST",headers:{"apikey":cfg.anonKey,"Content-Type":"application/json"},body:JSON.stringify(payload)});
+ const data=await res.json().catch(()=>({}));
+ if(!res.ok)throw Error(data.msg||data.error_description||data.message||"Falha na autenticação");
+ return data;
+};
+dialog.querySelector("#nexo-admin-signup").onclick=async()=>{
+ const email=adminForm.elements.namedItem("email").value.trim(),password=adminForm.elements.namedItem("password").value;
+ if(!email||!password){adminStatus.textContent="Informe e-mail e uma senha para criar sua conta.";return}
+ if(password.length<8){adminStatus.textContent="Escolha uma senha com pelo menos 8 caracteres.";return}
+ try{adminStatus.textContent="Criando conta...";await authAction("/auth/v1/signup",{email,password});adminStatus.textContent="Cadastro enviado. Confira seu e-mail e confirme a conta. O acesso de administrador só será liberado após a autorização dessa conta no NEXO.";adminForm.elements.namedItem("password").value=""}
+ catch(e){adminStatus.textContent=e.message}
+};
+dialog.querySelector("#nexo-admin-reset").onclick=async()=>{
+ const email=adminForm.elements.namedItem("email").value.trim();if(!email){adminStatus.textContent="Informe seu e-mail para recuperar a senha.";return}
+ try{await authAction("/auth/v1/recover",{email});adminStatus.textContent="Se existir uma conta para este e-mail, você receberá instruções de recuperação."}catch(e){adminStatus.textContent=e.message}
+};
 dialog.querySelector("form").onsubmit=async e=>{
  e.preventDefault();const status=dialog.querySelector("#nexo-login-status");
  if(!ready()){status.textContent="A autenticação segura ainda precisa ser configurada no servidor.";return}
