@@ -418,6 +418,13 @@ videos.forEach(v=>{const t=v.querySelector("h3");if(t)t.textContent=t.textConten
 window.NEXO_BACKEND=window.NEXO_BACKEND||{url:"https://pkohibgkxlntzgwqqcgj.supabase.co",anonKey:"sb_publishable_1FP5gaqlQVeeh_HvVLgEqA_Poo7FD1t"};
 (function(){
 const cfg=window.NEXO_BACKEND;let token="",admin=false,editing=false;
+const sessionKey="nexo_admin_session_v1";
+let refreshToken="",expiresAt=0;
+function saveSession(data){if(!data?.access_token||!data?.refresh_token)return;token=data.access_token;refreshToken=data.refresh_token;expiresAt=Math.floor(Date.now()/1000)+(Number(data.expires_in)||3600);try{localStorage.setItem(sessionKey,JSON.stringify({access_token:token,refresh_token:refreshToken,expires_at:expiresAt}))}catch(e){}}
+function clearSession(){token="";refreshToken="";expiresAt=0;admin=false;editing=false;try{localStorage.removeItem(sessionKey)}catch(e){}}
+async function refreshSession(){if(!refreshToken)return false;const res=await fetch(endpoint()+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":cfg.anonKey,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:refreshToken})});if(!res.ok)return false;const data=await res.json();if(!data.access_token)return false;saveSession(data);return true}
+async function restoreSession(){let saved;try{saved=JSON.parse(localStorage.getItem(sessionKey)||"null")}catch(e){}if(!saved?.refresh_token)return;token=saved.access_token||"";refreshToken=saved.refresh_token;expiresAt=saved.expires_at||0;try{if(!token||Date.now()/1000>=expiresAt-90){if(!await refreshSession())throw Error("Sessão expirada")}await call("status");admin=true;editing=true;access.textContent="Desativar administração";renderLessonsIfOpen()}catch(e){clearSession();access.textContent="Acesso à administração"}}
+
 window.NEXO_ADMIN_TOKEN=()=>admin?token:null;
 const ready=()=>/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(cfg.url||"")&&!!cfg.anonKey;
 const endpoint=()=>cfg.url.replace(/\/$/,"");
@@ -462,10 +469,11 @@ dialog.querySelector("form").onsubmit=async e=>{
  status.textContent="Verificando acesso...";
  const res=await fetch(endpoint()+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":cfg.anonKey,"Content-Type":"application/json"},body:JSON.stringify({email:form.email.value,password:form.password.value})});
  const data=await res.json();if(!res.ok||!data.access_token)throw Error("E-mail ou senha inválidos");
- token=data.access_token;await call("status");admin=true;editing=true;
+ saveSession(data);await call("status");admin=true;editing=true;
  access.textContent="Desativar administração";form.reset();dialog.close();renderLessonsIfOpen();
- }catch(err){token="";admin=false;editing=false;status.textContent=err.message||"Acesso negado"}
+ }catch(err){clearSession();status.textContent=err.message||"Acesso negado"}
 };
+restoreSession();setInterval(async()=>{if(admin&&refreshToken&&Date.now()/1000>expiresAt-180){if(!await refreshSession()){clearSession();access.textContent="Acesso à administração"}}},60000);
 async function renderImages(area,idx){
  if(!ready())return;
  const mount=document.createElement("section");mount.className="nexo-image-grid";mount.setAttribute("aria-label","Ilustrações da aula");
@@ -498,7 +506,7 @@ renderLessons=function(){
  const toolbar=document.createElement("div");toolbar.className="nexo-admin-toolbar";toolbar.innerHTML='<span class="nexo-admin-status">Edição ativa nesta sessão</span><button type="button" class="nexo-mode-off">Estudar sem ferramentas</button><button type="button" class="nexo-logout">Sair</button>';
  const head=area.querySelector(".nexo-reading-head")||area;head.after(toolbar);
  toolbar.querySelector(".nexo-mode-off").onclick=()=>{editing=false;access.textContent="Ativar administração";renderLessonsIfOpen()};
- toolbar.querySelector(".nexo-logout").onclick=()=>{token="";admin=false;editing=false;access.textContent="Acesso à administração";renderLessonsIfOpen()};
+ toolbar.querySelector(".nexo-logout").onclick=()=>{clearSession();access.textContent="Acesso à administração";renderLessonsIfOpen()};
  }
  const makeForm=(sectionIndex,sectionTitle,sectionText)=>{
  const box=document.createElement("div");box.className="nexo-inline-image-tools";
