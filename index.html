@@ -577,4 +577,63 @@ nexoShelfRender=function(){
  const shelf=root.querySelector(".nexo-bookgrid,.nexo-bookshelf");if(shelf)shelf.before(notice);
 };
 })();
+</script><script src="assets/nexo-source-reader.js"></script>
+<style id="nexo-source-check-style">
+.nexo-source-check{background:#2d213d;border:1px solid #80699c;border-radius:14px;padding:15px;margin:16px 0;color:#f4edfc}
+.nexo-source-check h3{margin:0 0 10px;font-size:17px}
+.nexo-source-item{border-top:1px solid #554267;padding:11px 0;font-size:14px}
+.nexo-source-item strong{display:block;color:#e3caff;overflow-wrap:anywhere}
+.nexo-source-item small{display:block;color:#bcb0cd;margin-top:5px}
+.nexo-source-warning{color:#ffcaac}
+.nexo-source-excerpt{background:#21172f;padding:12px;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:200px;overflow:auto;margin-top:8px;font-size:13px}
+.nexo-source-check button{padding:8px 12px;border:1px solid #ad8ed2;border-radius:9px;background:#4c3861;color:white}
+</style>
+<script id="nexo-source-check-client">
+(function(){
+const original=renderStudio;
+renderStudio=function(){
+ original();
+ const root=document.getElementById("detail-content");if(!root)return;
+ const input=root.querySelector("#st-files"),button=root.querySelector("#st-preview"),preview=root.querySelector("#studio-preview");
+ if(!input||!button)return;
+ const status=document.createElement("section");status.className="nexo-source-check";status.innerHTML='<h3>Verificação dos documentos</h3><p>Adicione PDFs, DOCX, PPTX ou TXT. O NEXO verifica páginas e texto extraído, inclusive páginas sem texto. Esta etapa não cria conteúdo por IA.</p><div class="nexo-source-results" aria-live="polite"></div>';
+ input.closest(".studio-config").insertBefore(status,input.nextSibling);
+ const results=status.querySelector(".nexo-source-results");let serial=0,reading=false;
+ input.accept=".pdf,.docx,.pptx,.txt,.md";
+ input.onchange=async()=>{
+ const current=++serial;reading=true;button.disabled=true;window.nexoVerifiedSources=[];
+ const files=[...input.files];results.textContent="Lendo "+files.length+" arquivo(s) e conferindo a extração...";
+ if(!files.length){results.textContent="Nenhum arquivo selecionado.";reading=false;button.disabled=false;return}
+ const checked=[];
+ for(const file of files){
+  if(current!==serial)return;
+  try{const record=await window.NEXO_SOURCE_READER.readFile(file);checked.push(record)}
+  catch(err){checked.push({name:file.name,error:err.message||"Falha ao ler"})}
+ }
+ if(current!==serial)return;
+ window.nexoVerifiedSources=checked;results.replaceChildren();
+ for(const rec of checked){
+ const item=document.createElement("div");item.className="nexo-source-item";
+ const name=document.createElement("strong");name.textContent=rec.name;item.append(name);
+ const meta=document.createElement("small");
+ meta.textContent=rec.error?"Erro: "+rec.error:rec.total+" página(s)/slide(s) · "+rec.chars+" caracteres extraídos · "+rec.empty.length+" página(s) sem texto suficiente";
+ item.append(meta);
+ if(rec.error||rec.empty?.length||rec.warning){const warn=document.createElement("p");warn.className="nexo-source-warning";warn.textContent=rec.error||((rec.empty?.length?"Páginas com leitura incompleta: "+rec.empty.join(", ")+". ":"")+(rec.warning||""));item.append(warn)}
+ if(rec.pages?.length){const details=document.createElement("details"),summary=document.createElement("summary");summary.textContent="Conferir trecho extraído";const excerpt=document.createElement("div");excerpt.className="nexo-source-excerpt";excerpt.textContent=rec.pages.slice(0,2).map(p=>"Página "+p.page+": "+p.text.slice(0,900)).join("\n\n");details.append(summary,excerpt);item.append(details)}
+ results.append(item);
+ }
+ reading=false;button.disabled=false;
+ };
+ button.addEventListener("click",e=>{
+ if(reading){e.stopImmediatePropagation();alert("Aguarde a leitura dos arquivos.");return}
+ if(input.files.length){
+ e.stopImmediatePropagation();
+ if(!window.nexoVerifiedSources||window.nexoVerifiedSources.some(x=>x.error||x.empty?.length)){
+ preview.innerHTML='<div class="nexo-source-check"><h3>Leitura incompleta</h3><p>Um ou mais documentos não foram lidos integralmente. Não é seguro gerar uma revisão afirmando que todas as fontes foram analisadas. Consulte os avisos acima.</p></div>';return;
+ }
+ preview.innerHTML='<div class="nexo-source-check"><h3>Documentos lidos e conferidos</h3><p>A extração textual foi realizada, mas o mecanismo de síntese por IA ainda não está conectado. Não vou substituir a revisão baseada nas fontes por um modelo genérico.</p></div>';return;
+ }
+ },true);
+};
+})();
 </script></body></html>
