@@ -383,7 +383,7 @@ videos.forEach(v=>{const t=v.querySelector("h3");if(t)t.textContent=t.textConten
 .nexo-admin-status{color:#d5b6ff;font-size:13px}
 @media print{.nexo-admin-panel,.nexo-admin-toolbar,.nexo-access-entry,.nexo-image-delete{display:none!important}}
 </style>
-<script id="nexo-secure-images-client">
+<style id="nexo-inline-image-style">.nexo-inline-image-tools{margin:18px 0 6px}.nexo-inline-trigger{background:transparent;border:1px dashed #9674b4;color:#d5b6ff;border-radius:12px;padding:9px 13px;font-size:13px}.nexo-inline-form{background:#30243f;border:1px solid #735b8a;padding:14px;border-radius:13px;margin-top:12px}.nexo-inline-form[hidden]{display:none}.nexo-inline-form textarea{width:100%;min-height:85px;background:#21172f;color:#fff;border:1px solid #7c6299;border-radius:9px;padding:11px;font:inherit;margin:9px 0}.nexo-inline-form button{background:#c4a1ff;color:#21172f;border:0;border-radius:9px;padding:9px 12px;margin-right:8px}.lesson-section>figure{margin:18px 0 0;width:100%;max-width:100%;border:1px solid #725889;border-radius:14px;overflow:hidden}.lesson-section>figure img{width:100%;height:auto;display:block}.lesson-section>figure figcaption{padding:12px;color:#ded0eb}.lesson-section>figure .nexo-image-delete{margin:0 12px 12px;background:transparent;color:#ffb9c6;border:1px solid #a77788;padding:8px;border-radius:8px}@media print{.nexo-inline-image-tools{display:none!important}}</style><script id="nexo-secure-images-client">
 /* Configuração pública, nunca inserir service_role ou OPENAI_API_KEY no navegador.
    Substituir somente SUPABASE_URL e SUPABASE_ANON_KEY após provisionar backend. */
 window.NEXO_BACKEND=window.NEXO_BACKEND||{url:"",anonKey:""};
@@ -422,7 +422,7 @@ async function renderImages(area,idx){
  const mount=document.createElement("section");mount.className="nexo-image-grid";mount.setAttribute("aria-label","Ilustrações da aula");
  const old=area.querySelector(".nexo-visual-gallery");if(old)old.before(mount);else area.querySelector(".nexo-reading-head")?.after(mount);
  try{
- const res=await fetch(endpoint()+"/rest/v1/nexo_lesson_images?select=id,image_url,alt_text,lesson_index&lesson_index=eq."+idx+"&order=created_at.asc",{headers:{"apikey":cfg.anonKey,"Authorization":"Bearer "+cfg.anonKey}});
+ const res=await fetch(endpoint()+"/rest/v1/nexo_lesson_images?select=id,image_url,alt_text,lesson_index,section_index&lesson_index=eq."+idx+"&order=created_at.asc",{headers:{"apikey":cfg.anonKey,"Authorization":"Bearer "+cfg.anonKey}});
  if(!res.ok)throw Error("Falha ao consultar imagens");
  const records=await res.json();
  if(!mount.isConnected)return;
@@ -432,7 +432,8 @@ async function renderImages(area,idx){
  const fig=document.createElement("figure"),img=document.createElement("img"),cap=document.createElement("figcaption");
  img.loading="lazy";img.src=item.image_url;img.alt=item.alt_text;cap.textContent=item.alt_text;fig.append(img,cap);
  if(admin&&editing){const remove=document.createElement("button");remove.className="nexo-image-delete";remove.textContent="Excluir imagem";remove.onclick=async()=>{if(!confirm("Excluir esta imagem publicada?"))return;remove.disabled=true;try{await call("delete",{id:item.id});fig.remove()}catch(e){alert(e.message);remove.disabled=false}};fig.append(remove)}
- mount.append(fig);
+ const target=Number.isInteger(item.section_index)&&item.section_index>=0?area.querySelectorAll(".lesson-section")[item.section_index]:null;
+ if(target)target.append(fig);else mount.append(fig);
  });
  }else mount.remove();
  }catch(e){mount.remove()}
@@ -441,19 +442,40 @@ const before=renderLessons;
 renderLessons=function(){
  before();const area=document.getElementById("reading-area");if(!area)return;
  const idx=Math.max(0,Number(window.lessonIndex)||0);
- renderImages(area,idx);
- if(!(admin&&editing))return;
- const panel=document.createElement("section");panel.className="nexo-admin-panel";
- panel.innerHTML='<div class="nexo-admin-toolbar"><span class="nexo-admin-status">Modo administrador ativo · apenas nesta sessão</span><button type="button" class="nexo-mode-off">Voltar ao modo estudo</button><button type="button" class="nexo-logout">Sair da conta</button></div><h3>Gerar imagem para esta aula</h3><p>Descreva a cena, os conceitos e a explicação visual. A imagem será gerada, armazenada e publicada automaticamente nesta aula.</p><form class="nexo-image-form"><label>Descrição detalhada da imagem<textarea name="prompt" required minlength="30" maxlength="2500" placeholder="Ex.: Cena editorial realista comparando a primeira e a segunda tópicas freudianas, com exemplos cotidianos e contraste visual claro."></textarea></label><label>Descrição acessível<input name="alt" required minlength="5" maxlength="240" placeholder="O que a imagem explica?"></label><button type="submit">Gerar e adicionar à aula</button><p role="status" class="nexo-image-status"></p></form>';
- const gallery=area.querySelector(".nexo-visual-gallery");if(gallery)gallery.before(panel);else area.prepend(panel);
- panel.querySelector(".nexo-mode-off").onclick=()=>{editing=false;access.textContent="Ativar administração";renderLessonsIfOpen()};
- panel.querySelector(".nexo-logout").onclick=()=>{token="";admin=false;editing=false;access.textContent="Acesso à administração";renderLessonsIfOpen()};
- panel.querySelector("form").onsubmit=async e=>{
- e.preventDefault();const form=e.currentTarget,button=form.querySelector('button[type="submit"]'),status=form.querySelector(".nexo-image-status");
- button.disabled=true;status.textContent="Gerando e armazenando a ilustração...";
- try{await call("generate",{lesson_index:idx,prompt:form.elements.prompt.value,alt_text:form.elements.alt.value});status.textContent="Imagem publicada.";renderLessonsIfOpen()}
- catch(err){status.textContent=err.message||"Falha ao gerar imagem";button.disabled=false}
+ const sections=[...area.querySelectorAll(".lesson-section")];
+ const source=Array.isArray(window.lessons)?window.lessons[idx]:null;
+ const title=area.querySelector(".nexo-reading-head h2, h2")?.textContent||"Aula";
+ if(admin&&editing){
+ const toolbar=document.createElement("div");toolbar.className="nexo-admin-toolbar";toolbar.innerHTML='<span class="nexo-admin-status">Edição ativa nesta sessão</span><button type="button" class="nexo-mode-off">Estudar sem ferramentas</button><button type="button" class="nexo-logout">Sair</button>';
+ const head=area.querySelector(".nexo-reading-head")||area;head.after(toolbar);
+ toolbar.querySelector(".nexo-mode-off").onclick=()=>{editing=false;access.textContent="Ativar administração";renderLessonsIfOpen()};
+ toolbar.querySelector(".nexo-logout").onclick=()=>{token="";admin=false;editing=false;access.textContent="Acesso à administração";renderLessonsIfOpen()};
+ }
+ const makeForm=(sectionIndex,sectionTitle,sectionText)=>{
+ const box=document.createElement("div");box.className="nexo-inline-image-tools";
+ box.innerHTML='<button type="button" class="nexo-inline-trigger">✦ Criar ilustração deste trecho</button><form class="nexo-inline-form" hidden><label>Orientação visual (opcional)<textarea name="extra" maxlength="1200" placeholder="Ex.: use uma história em quadrinhos comparativa, com cenas realistas."></textarea></label><button type="submit">Gerar e inserir aqui</button><button type="button" class="nexo-inline-cancel">Cancelar</button><p role="status" class="nexo-image-status"></p></form>';
+ const form=box.querySelector("form");
+ box.querySelector(".nexo-inline-trigger").onclick=()=>{form.hidden=!form.hidden};
+ box.querySelector(".nexo-inline-cancel").onclick=()=>{form.hidden=true};
+ form.onsubmit=async e=>{
+ e.preventDefault();const button=form.querySelector('[type="submit"]'),status=form.querySelector(".nexo-image-status");
+ const extra=form.elements.extra.value.trim();
+ const prompt="Disciplina: Psicanálise. Aula: "+title+". Seção: "+sectionTitle+". Conteúdo didático: "+sectionText.slice(0,1000)+". "+extra+". Criar ilustração editorial didática integrada à leitura, rigor conceitual, representação visual rica, não um diagrama de caixas com emojis.";
+ const alt="Ilustração didática: "+sectionTitle.slice(0,190);
+ button.disabled=true;status.textContent="Gerando imagem para este trecho...";
+ try{await call("generate",{lesson_index:idx,section_index:sectionIndex,prompt:prompt.slice(0,2450),alt_text:alt});renderLessonsIfOpen()}
+ catch(err){status.textContent=err.message||"Falha na geração";button.disabled=false}
  };
+ return box;
+ };
+ sections.forEach((section,i)=>{
+ if(admin&&editing){
+ const heading=section.querySelector("h3")?.textContent||"Seção "+(i+1);
+ const body=section.querySelector("p")?.textContent||"";
+ section.append(makeForm(i,heading,body));
+ }
+ });
+ renderImages(area,idx);
 };
 })();
 </script></body></html>
