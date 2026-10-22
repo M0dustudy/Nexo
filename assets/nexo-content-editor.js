@@ -9,7 +9,7 @@ let units=[],dlg=null,dirty=false,expandedUnit=0,expandedBlock=-1;
 const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const token=()=>window.NEXO_ADMIN_TOKEN?.();
 const initial=()=>original.map(u=>({title:u.title,subtitle:u.subtitle,source:u.source,blocks:u.blocks.map(b=>({title:b[0],text:b[1],image:""})),question:u.check[0],answer:u.check[1]}));
-function normalize(u){return {title:u.title||"Sem título",subtitle:u.subtitle||"",source:u.source||"Conteúdo editado no NEXO",blocks:(u.blocks||[]).map(b=>({title:b.title??b[0]??"",text:b.text??b[1]??"",image:b.image||"",fields:Array.isArray(b.fields)?b.fields:undefined})),question:u.question||"",answer:u.answer||""}}
+function normalize(u){return {title:u.title||"Sem título",subtitle:u.subtitle||"",source:u.source||"Conteúdo editado no NEXO",blocks:(u.blocks||[]).map(b=>({title:b.title??b[0]??"",text:b.text??b[1]??"",image:b.image||"",fields:Array.isArray(b.fields)?b.fields:undefined})),question:u.question||"",answer:u.answer||"",hiddenFields:Array.isArray(u.hiddenFields)?u.hiddenFields:[]}}
 function fields(b){if(Array.isArray(b.fields))return b.fields;return [{type:"title",value:b.title||""},{type:"text",value:b.text||""},...(b.image?[{type:"image",value:b.image}]:[])]}
 function syncLegacy(b){const f=fields(b);b.fields=f;b.title=f.find(x=>x.type==="title")?.value||"";b.text=f.find(x=>x.type==="text")?.value||"";b.image=f.find(x=>x.type==="image")?.value||""}
 window.nexoRenderFields=(unitIndex,blockIndex)=>{const b=units[unitIndex]?.blocks[blockIndex];if(!b)return "";return fields(b).map(x=>x.type==="image"?'<img class="nexo-lesson-uploaded-image" src="'+esc(x.value)+'" alt="Imagem do conteúdo" loading="lazy">':x.type==="title"?'<h3>'+esc(x.value)+'</h3>':'<p>'+esc(x.value).replace(/\r?\n/g,"<br>")+'</p>').join("")};
@@ -68,7 +68,7 @@ function open(){
  dlg=document.createElement("dialog");dlg.className="nexo-content-editor";
  dlg.innerHTML='<header><h2>Editar Psicanálise</h2><button type="button" data-close>Fechar</button></header><p>Edite as unidades existentes, reorganize assuntos e envie imagens. As mudanças só aparecem para todos depois de tocar em Publicar.</p><div id="nexo-editor-units"></div><button type="button" data-new>+ Criar unidade</button><button type="button" class="nexo-edit-save" data-save>Salvar e publicar tudo</button><p role="status" id="nexo-editor-status"></p>';
  document.body.append(dlg);dlg.querySelector("[data-close]").onclick=close;
- dlg.querySelector("[data-new]").onclick=()=>{units.push({title:"Nova unidade",subtitle:"",source:"Conteúdo criado no NEXO",blocks:[],question:"",answer:""});mark();draw()};
+ dlg.querySelector("[data-new]").onclick=()=>{units.push({title:"Nova unidade",subtitle:"",source:"Conteúdo criado no NEXO",blocks:[],question:"",answer:"",hiddenFields:[]});mark();draw()};
  dlg.querySelector("[data-save]").onclick=publish;draw();dlg.showModal()
 }
 function draw(){
@@ -76,7 +76,21 @@ function draw(){
  box.innerHTML=units.map((u,i)=>'<section class="nexo-edit-unit" data-unit="'+i+'"><div class="nexo-edit-head"><button type="button" class="nexo-drag-handle" data-uhandle>⠿</button><button type="button" data-toggle class="nexo-unit-toggle">Unidade '+(i+1)+' · '+esc(u.title)+'</button><div><button data-delete>Excluir</button></div></div><div class="nexo-edit-details" '+(expandedUnit===i?"":"hidden")+'><label>Título<input data-field="title" value="'+esc(u.title)+'"></label><label>Apresentação<textarea data-field="subtitle">'+esc(u.subtitle)+'</textarea></label><h4>Assuntos · arraste para reordenar</h4><div class="nexo-edit-blocks">'+u.blocks.map((b,j)=>'<div class="nexo-edit-block" data-block="'+j+'"><div class="nexo-edit-head"><button type="button" class="nexo-drag-handle" data-bhandle>⠿</button><button type="button" data-btoggle class="nexo-unit-toggle">Assunto '+(j+1)+' · '+esc(b.title)+'</button><div><button data-bdelete>Excluir</button></div></div><div class="nexo-edit-details" '+(expandedBlock===j?"":"hidden")+'><p class="nexo-field-hint">Segure ⠿ para mover cada campo. Adicione ou exclua títulos, textos e imagens.</p><div class="nexo-free-fields">'+fields(b).map((field,k)=>'<div class="nexo-free-field" data-field-index="'+k+'"><div class="nexo-edit-head"><button type="button" class="nexo-drag-handle" data-fhandle>⠿</button><strong>'+({title:"Título",text:"Texto",image:"Imagem"}[field.type]||"Campo")+'</strong><button type="button" data-fdelete>Excluir</button></div>'+(field.type==="image"?'<img src="'+esc(field.value)+'" alt="Imagem do campo" style="max-width:100%;max-height:220px;object-fit:contain"><label>Trocar imagem<input type="file" accept="image/png,image/jpeg,image/webp" data-fupload></label><p class="nexo-upload-status"></p>':field.type==="text"?'<textarea rows="5" data-fvalue>'+esc(field.value)+'</textarea>':'<input data-fvalue value="'+esc(field.value)+'">')+'</div>').join("")+'</div><div class="nexo-add-fields"><button type="button" data-ftitle>+ Título</button><button type="button" data-ftext>+ Texto</button><button type="button" data-fimage>+ Imagem</button></div></div></div>').join("")+'</div><button data-add>+ Novo assunto</button><h4>Verifique a compreensão</h4><label>Pergunta<input data-field="question" value="'+esc(u.question)+'"></label><label>Resposta comentada<textarea data-field="answer">'+esc(u.answer)+'</textarea></label></div></section>').join("");
  box.querySelectorAll("[data-unit]").forEach(el=>{
  const i=+el.dataset.unit;el.querySelector("[data-toggle]").onclick=()=>{expandedUnit=expandedUnit===i?-1:i;expandedBlock=-1;draw()};dragSort(el.querySelector("[data-uhandle]"),units,i,"[data-unit]");
- el.querySelectorAll("[data-field]").forEach(field=>field.oninput=()=>{units[i][field.dataset.field]=field.value;mark()});
+ el.querySelectorAll("[data-field]").forEach(field=>{
+ field.oninput=()=>{units[i][field.dataset.field]=field.value;mark()};
+ const label=field.closest("label"),name=field.dataset.field;
+ if(!label)return;
+ if((units[i].hiddenFields||[]).includes(name)){label.hidden=true;return}
+ const del=document.createElement("button");del.type="button";del.textContent="Excluir campo";del.className="nexo-remove-single";
+ del.onclick=()=>{if(!confirm("Excluir este campo de escrita?"))return;units[i][name]="";units[i].hiddenFields=[...new Set([...(units[i].hiddenFields||[]),name])];mark();draw()};
+ label.append(del);
+ });
+ const missing=(units[i].hiddenFields||[]).filter(name=>["title","subtitle","question","answer"].includes(name));
+ if(missing.length){const add=document.createElement("div");add.className="nexo-add-fields";missing.forEach(name=>{
+ const btn=document.createElement("button");btn.type="button";btn.textContent="+ "+({title:"Título",subtitle:"Apresentação",question:"Pergunta",answer:"Resposta comentada"}[name]);
+ btn.onclick=()=>{units[i].hiddenFields=units[i].hiddenFields.filter(x=>x!==name);mark();draw()};add.append(btn)
+ });el.querySelector(".nexo-edit-details")?.append(add)}
+
  
  
  el.querySelector("[data-delete]").onclick=()=>{if(confirm("Excluir esta unidade do rascunho?")){units.splice(i,1);mark();draw()}};
