@@ -1,47 +1,82 @@
-(function(){
+(()=>{
 "use strict";
-const config=window.NEXO_BACKEND;
-if(!config||typeof lessons==="undefined")return;
-const api=config.url.replace(/\/$/,"")+"/rest/v1/nexo_editor_content";
-const key="psicanalise";
-const clean=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let original=JSON.parse(JSON.stringify(lessons));
-let saved=[];
-let editor;
-const auth=()=>window.NEXO_ADMIN_TOKEN?.();
-async function load(){
- try{const r=await fetch(api+"?content_key=eq."+key+"&select=payload",{headers:{apikey:config.anonKey}});if(!r.ok)throw Error("Não foi possível carregar o conteúdo.");const rows=await r.json();saved=Array.isArray(rows[0]?.payload?.units)?rows[0].payload.units:[];apply()}catch(e){console.warn("NEXO editor:",e.message)}
-}
+const cfg=window.NEXO_BACKEND;if(!cfg||typeof lessons==="undefined")return;
+const rootUrl=cfg.url.replace(/\/$/,"");
+const api=rootUrl+"/rest/v1/nexo_editor_content";
+const bucket="nexo-lesson-images";
+const original=JSON.parse(JSON.stringify(lessons));
+let units=[],dlg=null,dirty=false;
+const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const token=()=>window.NEXO_ADMIN_TOKEN?.();
+const initial=()=>original.map(u=>({title:u.title,subtitle:u.subtitle,source:u.source,blocks:u.blocks.map(b=>({title:b[0],text:b[1],image:""})),question:u.check[0],answer:u.check[1]}));
+function normalize(u){return {title:u.title||"Sem título",subtitle:u.subtitle||"",source:u.source||"Conteúdo editado no NEXO",blocks:(u.blocks||[]).map(b=>({title:b.title??b[0]??"",text:b.text??b[1]??"",image:b.image||""})),question:u.question||"",answer:u.answer||""}}
 function apply(){
- lessons.splice(0,lessons.length,...original.map(x=>JSON.parse(JSON.stringify(x))),...saved.map(u=>({title:u.title,subtitle:u.subtitle,source:"Conteúdo criado no editor NEXO",blocks:u.blocks.map(b=>[b.title,b.text]),check:[u.question||"Revise os conceitos apresentados.",u.answer||"Consulte a explicação da unidade."]})));
- if(document.getElementById("reading-area")){window.lessonIndex=Math.min(window.lessonIndex,lessons.length-1);renderLessons()}
+ lessons.splice(0,lessons.length,...units.map(u=>({title:u.title,subtitle:u.subtitle,source:u.source||"Conteúdo elaborado no NEXO",blocks:u.blocks.map(b=>[b.title,b.text]),check:[u.question||"Releia a unidade e explique o conceito central.",u.answer||"Retome a explicação acima."]})));
+ window.nexoLessonImages=units.map(u=>u.blocks.map(b=>b.image||""));
+ if(document.getElementById("reading-area")){window.lessonIndex=Math.max(0,Math.min(window.lessonIndex,lessons.length-1));renderLessons()}
 }
-function panel(){
- if(editor){editor.remove();editor=null;return}
- if(!auth()){alert("Entre no modo administrador para editar o conteúdo.");return}
- editor=document.createElement("dialog");editor.className="nexo-content-editor";
- editor.innerHTML='<header><h2>Editor de conteúdo · Psicanálise</h2><button type="button" data-close aria-label="Fechar">✕</button></header><p>Crie unidades e assuntos. As alterações são salvas no Supabase e ficam disponíveis em todos os dispositivos. Os materiais originais não são alterados.</p><div id="nexo-editor-units"></div><button type="button" data-add>+ Nova unidade</button><p id="nexo-editor-status" role="status"></p>';
- document.body.append(editor);editor.querySelector("[data-close]").onclick=()=>{editor.close();editor.remove();editor=null};
- editor.querySelector("[data-add]").onclick=()=>{saved.push({title:"Nova unidade",subtitle:"",blocks:[{title:"Novo assunto",text:""}],question:"",answer:""});draw()};
- draw();editor.showModal();
+async function load(){
+ try{const r=await fetch(api+"?content_key=eq.psicanalise&select=payload",{headers:{apikey:cfg.anonKey}});if(!r.ok)throw Error("HTTP "+r.status);const rows=await r.json();const existing=rows[0]?.payload?.units;
+ if(Array.isArray(existing)&&existing.length){if(existing.length<original.length){units=[...initial(),...existing.map(normalize)]}else{units=existing.map(normalize)}}else units=initial();apply()
+ }catch(e){console.warn("NEXO: erro ao carregar conteúdo",e);units=initial();apply()}
+}
+function mark(){dirty=true;if(dlg)dlg.querySelector("#nexo-editor-status").textContent="Alterações ainda não publicadas"}
+function close(){if(dirty&&!confirm("Descartar alterações não publicadas?"))return;dlg.close();dlg.remove();dlg=null}
+function swap(arr,a,b){if(b<0||b>=arr.length)return;[arr[a],arr[b]]=[arr[b],arr[a]];mark();draw()}
+function open(){
+ if(!token()){alert("Ative o acesso administrativo para editar.");return}
+ if(dlg){dlg.showModal();return}
+ dlg=document.createElement("dialog");dlg.className="nexo-content-editor";
+ dlg.innerHTML='<header><h2>Editar Psicanálise</h2><button type="button" data-close>Fechar</button></header><p>Edite as unidades existentes, reorganize assuntos e envie imagens. As mudanças só aparecem para todos depois de tocar em Publicar.</p><div id="nexo-editor-units"></div><button type="button" data-new>+ Criar unidade</button><button type="button" class="nexo-edit-save" data-save>Salvar e publicar tudo</button><p role="status" id="nexo-editor-status"></p>';
+ document.body.append(dlg);dlg.querySelector("[data-close]").onclick=close;
+ dlg.querySelector("[data-new]").onclick=()=>{units.push({title:"Nova unidade",subtitle:"",source:"Conteúdo criado no NEXO",blocks:[],question:"",answer:""});mark();draw()};
+ dlg.querySelector("[data-save]").onclick=publish;draw();dlg.showModal()
 }
 function draw(){
- const root=editor.querySelector("#nexo-editor-units");
- root.innerHTML=saved.map((u,i)=>'<section class="nexo-edit-unit" data-unit="'+i+'"><div class="nexo-edit-head"><h3>Unidade '+(i+1)+'</h3><button type="button" data-remove-unit="'+i+'">Excluir unidade</button></div><label>Título<input data-field="title" value="'+clean(u.title)+'"></label><label>Apresentação<textarea data-field="subtitle">'+clean(u.subtitle)+'</textarea></label><h4>Assuntos</h4><div class="nexo-edit-blocks">'+u.blocks.map((b,j)=>'<div class="nexo-edit-block" data-block="'+j+'"><label>Título do assunto<input data-block-field="title" value="'+clean(b.title)+'"></label><label>Explicação<textarea rows="6" data-block-field="text">'+clean(b.text)+'</textarea></label><button type="button" data-remove-block="'+j+'">Excluir assunto</button></div>').join("")+'</div><button type="button" data-add-block>+ Adicionar assunto</button><h4>Aprenda o conteúdo · recuperação ativa</h4><label>Pergunta<input data-field="question" value="'+clean(u.question)+'"></label><label>Resposta comentada<textarea data-field="answer">'+clean(u.answer)+'</textarea></label></section>').join("");
- root.querySelectorAll("[data-unit]").forEach(section=>{
- const i=+section.dataset.unit;
- section.querySelectorAll("[data-field]").forEach(el=>el.oninput=()=>saved[i][el.dataset.field]=el.value);
- section.querySelectorAll("[data-block]").forEach(b=>{const j=+b.dataset.block;b.querySelectorAll("[data-block-field]").forEach(el=>el.oninput=()=>saved[i].blocks[j][el.dataset.blockField]=el.value);b.querySelector("[data-remove-block]").onclick=()=>{saved[i].blocks.splice(j,1);draw()}});
- section.querySelector("[data-add-block]").onclick=()=>{saved[i].blocks.push({title:"Novo assunto",text:""});draw()};
- section.querySelector("[data-remove-unit]").onclick=()=>{if(confirm("Excluir esta unidade do conteúdo publicado?")){saved.splice(i,1);draw()}};
- });
- const save=document.createElement("button");save.textContent="Salvar e publicar alterações";save.className="nexo-edit-save";save.onclick=publish;root.append(save);
+ const box=dlg.querySelector("#nexo-editor-units");
+ box.innerHTML=units.map((u,i)=>'<section class="nexo-edit-unit" data-unit="'+i+'" draggable="true"><div class="nexo-edit-head"><h3>☰ Unidade '+(i+1)+'</h3><div><button data-up>↑</button><button data-down>↓</button><button data-delete>Excluir</button></div></div><label>Título<input data-field="title" value="'+esc(u.title)+'"></label><label>Apresentação<textarea data-field="subtitle">'+esc(u.subtitle)+'</textarea></label><h4>Assuntos · arraste para reordenar</h4><div class="nexo-edit-blocks">'+u.blocks.map((b,j)=>'<div class="nexo-edit-block" data-block="'+j+'" draggable="true"><div class="nexo-edit-head"><strong>☰ Assunto '+(j+1)+'</strong><div><button data-bup>↑</button><button data-bdown>↓</button><button data-bdelete>Excluir</button></div></div><label>Título<input data-bfield="title" value="'+esc(b.title)+'"></label><label>Explicação<textarea rows="5" data-bfield="text">'+esc(b.text)+'</textarea></label>'+(b.image?'<img src="'+esc(b.image)+'" alt="Ilustração do assunto" style="max-width:100%;max-height:220px;object-fit:contain;border-radius:10px"><button data-image-remove>Remover imagem</button>':'')+'<label>Adicionar imagem do celular<input type="file" accept="image/png,image/jpeg,image/webp" data-upload></label><p class="nexo-upload-status"></p></div>').join("")+'</div><button data-add>+ Novo assunto</button><h4>Verifique a compreensão</h4><label>Pergunta<input data-field="question" value="'+esc(u.question)+'"></label><label>Resposta comentada<textarea data-field="answer">'+esc(u.answer)+'</textarea></label></section>').join("");
+ box.querySelectorAll("[data-unit]").forEach(el=>{
+ const i=+el.dataset.unit;
+ el.querySelectorAll("[data-field]").forEach(field=>field.oninput=()=>{units[i][field.dataset.field]=field.value;mark()});
+ el.querySelector("[data-up]").onclick=()=>swap(units,i,i-1);
+ el.querySelector("[data-down]").onclick=()=>swap(units,i,i+1);
+ el.querySelector("[data-delete]").onclick=()=>{if(confirm("Excluir esta unidade do rascunho?")){units.splice(i,1);mark();draw()}};
+ el.querySelector("[data-add]").onclick=()=>{units[i].blocks.push({title:"Novo assunto",text:"",image:""});mark();draw()};
+ el.addEventListener("dragstart",e=>{if(e.target!==el)return;e.dataTransfer.setData("text/nexo-unit",String(i))});
+ el.addEventListener("dragover",e=>{if(e.dataTransfer.types.includes("text/nexo-unit"))e.preventDefault()});
+ el.addEventListener("drop",e=>{const a=e.dataTransfer.getData("text/nexo-unit");if(a!==""){e.preventDefault();swap(units,+a,i)}});
+ el.querySelectorAll("[data-block]").forEach(block=>{
+ const j=+block.dataset.block;
+ block.querySelectorAll("[data-bfield]").forEach(field=>field.oninput=()=>{units[i].blocks[j][field.dataset.bfield]=field.value;mark()});
+ block.querySelector("[data-bup]").onclick=()=>swap(units[i].blocks,j,j-1);
+ block.querySelector("[data-bdown]").onclick=()=>swap(units[i].blocks,j,j+1);
+ block.querySelector("[data-bdelete]").onclick=()=>{if(confirm("Excluir este assunto?")){units[i].blocks.splice(j,1);mark();draw()}};
+ block.querySelector("[data-image-remove]")?.addEventListener("click",()=>{units[i].blocks[j].image="";mark();draw()});
+ block.querySelector("[data-upload]").onchange=e=>upload(e.target.files?.[0],i,j,block.querySelector(".nexo-upload-status"));
+ block.addEventListener("dragstart",e=>{e.stopPropagation();e.dataTransfer.setData("text/nexo-block",i+":"+j)});
+ block.addEventListener("dragover",e=>{if(e.dataTransfer.types.includes("text/nexo-block"))e.preventDefault()});
+ block.addEventListener("drop",e=>{e.stopPropagation();const [ui,bj]=(e.dataTransfer.getData("text/nexo-block")||"").split(":");if(+ui===i&&bj!==""){e.preventDefault();swap(units[i].blocks,+bj,j)}});
+ })
+ })
+}
+async function upload(file,i,j,status){
+ if(!file)return;if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>5*1024*1024){status.textContent="Use JPG, PNG ou WebP de até 5 MB.";return}
+ const jwt=token();if(!jwt){status.textContent="Sessão administrativa indisponível.";return}
+ status.textContent="Enviando imagem...";
+ try{const extension={"image/jpeg":"jpg","image/png":"png","image/webp":"webp"}[file.type];const name="editor/"+crypto.randomUUID()+"."+extension;
+ const r=await fetch(rootUrl+"/storage/v1/object/"+bucket+"/"+name,{method:"POST",headers:{"apikey":cfg.anonKey,"Authorization":"Bearer "+jwt,"Content-Type":file.type,"x-upsert":"false"},body:file});
+ if(!r.ok)throw Error((await r.text()).slice(0,180));
+ units[i].blocks[j].image=rootUrl+"/storage/v1/object/public/"+bucket+"/"+name;mark();draw();
+ }catch(e){status.textContent="Falha no upload: "+e.message}
 }
 async function publish(){
- const status=editor.querySelector("#nexo-editor-status");const token=auth();if(!token){status.textContent="Sessão encerrada. Entre novamente.";return}
- try{status.textContent="Salvando...";const r=await fetch(api+"?on_conflict=content_key",{method:"POST",headers:{"apikey":config.anonKey,"Authorization":"Bearer "+token,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({content_key:key,payload:{units:saved}})});if(!r.ok)throw Error((await r.text()).slice(0,250));status.textContent="Conteúdo publicado e sincronizado.";apply()}catch(e){status.textContent="Não foi possível publicar: "+e.message}
+ const status=dlg.querySelector("#nexo-editor-status"),jwt=token();if(!jwt){status.textContent="Faça login novamente.";return}
+ const btn=dlg.querySelector("[data-save]");btn.disabled=true;status.textContent="Publicando...";
+ try{const r=await fetch(api+"?on_conflict=content_key",{method:"POST",headers:{"apikey":cfg.anonKey,"Authorization":"Bearer "+jwt,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({content_key:"psicanalise",payload:{units}})});
+ if(!r.ok)throw Error((await r.text()).slice(0,250));dirty=false;status.textContent="Publicado! Conteúdo e imagens disponíveis para leitores.";apply()
+ }catch(e){status.textContent="Erro ao publicar: "+e.message}finally{btn.disabled=false}
 }
-const button=document.createElement("button");button.type="button";button.className="nexo-edit-launch";button.textContent="✎ Editar aulas";button.onclick=panel;document.body.append(button);
-setInterval(()=>{button.hidden=!auth()},1500);
-button.hidden=true;load();
+const button=document.createElement("button");button.className="nexo-edit-launch";button.type="button";button.textContent="✎ Editar esta disciplina";button.onclick=open;document.body.append(button);
+const sync=()=>{button.hidden=!token()||!document.getElementById("reading-area")};
+setInterval(sync,800);sync();load();
 })();
