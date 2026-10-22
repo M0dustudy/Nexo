@@ -12,7 +12,7 @@ const initial=()=>original.map(u=>({title:u.title,subtitle:u.subtitle,source:u.s
 function normalize(u){return {title:u.title||"Sem título",subtitle:u.subtitle||"",source:u.source||"Conteúdo editado no NEXO",blocks:(u.blocks||[]).map(b=>({title:b.title??b[0]??"",text:b.text??b[1]??"",image:b.image||"",fields:Array.isArray(b.fields)?b.fields:undefined})),question:u.question||"",answer:u.answer||""}}
 function fields(b){if(Array.isArray(b.fields))return b.fields;return [{type:"title",value:b.title||""},{type:"text",value:b.text||""},...(b.image?[{type:"image",value:b.image}]:[])]}
 function syncLegacy(b){const f=fields(b);b.fields=f;b.title=f.find(x=>x.type==="title")?.value||"";b.text=f.find(x=>x.type==="text")?.value||"";b.image=f.find(x=>x.type==="image")?.value||""}
-window.nexoRenderFields=(unitIndex,blockIndex)=>{const b=units[unitIndex]?.blocks[blockIndex];if(!b)return "";return fields(b).map(x=>x.type==="image"?'<img class="nexo-lesson-uploaded-image" src="'+esc(x.value)+'" alt="Imagem do conteúdo" loading="lazy">':x.type==="title"?'<h3>'+esc(x.value)+'</h3>':'<p>'+esc(x.value).replace(/\\n/g,"<br>")+'</p>').join("")};
+window.nexoRenderFields=(unitIndex,blockIndex)=>{const b=units[unitIndex]?.blocks[blockIndex];if(!b)return "";return fields(b).map(x=>x.type==="image"?'<img class="nexo-lesson-uploaded-image" src="'+esc(x.value)+'" alt="Imagem do conteúdo" loading="lazy">':x.type==="title"?'<h3>'+esc(x.value)+'</h3>':'<p>'+esc(x.value).replace(/\r?\n/g,"<br>")+'</p>').join("")};
 function moveField(arr,a,b){if(b<0||b>=arr.length)return;const [item]=arr.splice(a,1);arr.splice(b,0,item);mark();draw()}
 function apply(){
  lessons.splice(0,lessons.length,...units.map(u=>({title:u.title,subtitle:u.subtitle,source:u.source||"Conteúdo elaborado no NEXO",blocks:u.blocks.map(b=>[b.title,b.text]),check:[u.question||"Releia a unidade e explique o conceito central.",u.answer||"Retome a explicação acima."]})));
@@ -21,14 +21,47 @@ function apply(){
 }
 async function load(){
  try{const r=await fetch(api+"?content_key=eq.psicanalise&select=payload",{headers:{apikey:cfg.anonKey}});if(!r.ok)throw Error("HTTP "+r.status);const rows=await r.json();const existing=rows[0]?.payload?.units;
- if(Array.isArray(existing)&&existing.length){if(existing.length<original.length){units=[...initial(),...existing.map(normalize)]}else{units=existing.map(normalize)}}else units=initial();apply()
+ if(Array.isArray(existing)&&existing.length){units=existing.map(normalize)}else units=initial();apply()
  }catch(e){console.warn("NEXO: erro ao carregar conteúdo",e);units=initial();apply()}
 }
 function mark(){dirty=true;if(dlg)dlg.querySelector("#nexo-editor-status").textContent="Alterações ainda não publicadas"}
 function close(){if(dirty&&!confirm("Descartar alterações não publicadas?"))return;dlg.close();dlg.remove();dlg=null}
 function swap(arr,a,b){if(b<0||b>=arr.length)return;[arr[a],arr[b]]=[arr[b],arr[a]];mark();draw()}
-function touchMove(handle,arr,index,selector){let active=false;handle.style.touchAction="none";handle.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse")return;active=true;handle.setPointerCapture(e.pointerId)});handle.addEventListener("pointermove",e=>{if(!active)return;const target=document.elementFromPoint(e.clientX,e.clientY)?.closest(selector);if(!target)return;const dest=Number(selector==="[data-unit]"?target.dataset.unit:target.dataset.block);if(dest!==index&&Number.isInteger(dest)){active=false;swap(arr,index,dest)}});handle.addEventListener("pointerup",()=>active=false);handle.addEventListener("pointercancel",()=>active=false)}
-function dragSort(handle,items,index,selector){let start=null,ghost=null,active=false;handle.style.touchAction="none";handle.addEventListener("pointerdown",e=>{if(e.button!==0)return;start={x:e.clientX,y:e.clientY,id:e.pointerId};active=true;handle.setPointerCapture(e.pointerId);ghost=handle.closest(selector);ghost?.classList.add("nexo-sorting");e.preventDefault()});handle.addEventListener("pointermove",e=>{if(!active||!start)return;const hit=document.elementFromPoint(e.clientX,e.clientY)?.closest(selector);if(!hit||hit===ghost)return;const dest=Number(selector==="[data-unit]"?hit.dataset.unit:selector==="[data-field-index]"?hit.dataset.fieldIndex:hit.dataset.block);if(!Number.isInteger(dest)||dest===index)return;active=false;ghost?.classList.remove("nexo-sorting");swap(items,index,dest)});const end=()=>{active=false;ghost?.classList.remove("nexo-sorting");start=null};handle.addEventListener("pointerup",end);handle.addEventListener("pointercancel",end)}
+function dragSort(handle,items,index,selector){
+ const card=handle.closest(selector);if(!card)return;
+ let state=null;handle.style.touchAction="none";
+ handle.setAttribute("aria-label","Segure e arraste para reorganizar");
+ handle.addEventListener("pointerdown",e=>{
+  if(e.button!==0)return;
+  state={id:e.pointerId,from:index,to:index,lastY:e.clientY};
+  handle.setPointerCapture(e.pointerId);card.classList.add("nexo-dragging");
+  e.preventDefault();
+ });
+ handle.addEventListener("pointermove",e=>{
+  if(!state||state.id!==e.pointerId)return;
+  state.lastY=e.clientY;
+  const parent=card.parentElement;
+  const siblings=[...parent.children].filter(x=>x.matches(selector));
+  const target=siblings.find(x=>x!==card&&e.clientY>=x.getBoundingClientRect().top&&e.clientY<=x.getBoundingClientRect().bottom);
+  if(target){
+   const rect=target.getBoundingClientRect();
+   parent.insertBefore(card,e.clientY<rect.top+rect.height/2?target:target.nextSibling);
+   state.to=[...parent.children].filter(x=>x.matches(selector)).indexOf(card);
+  }
+  const r=dlg.getBoundingClientRect();
+  if(e.clientY>r.bottom-65)dlg.scrollTop+=16;
+  else if(e.clientY<r.top+65)dlg.scrollTop-=16;
+  e.preventDefault();
+ });
+ handle.addEventListener("pointerup",e=>{
+  if(!state||state.id!==e.pointerId)return;
+  const {from,to}=state;state=null;card.classList.remove("nexo-dragging");
+  if(from!==to&&to>=0&&to<items.length){
+   const [item]=items.splice(from,1);items.splice(to,0,item);mark();draw();
+  }
+ });
+ handle.addEventListener("pointercancel",()=>{state=null;card.classList.remove("nexo-dragging");draw()});
+}
 function open(){
  if(!token()){alert("Ative o acesso administrativo para editar.");return}
  if(dlg){dlg.showModal();return}
