@@ -407,6 +407,7 @@ videos.forEach(v=>{const t=v.querySelector("h3");if(t)t.textContent=t.textConten
 window.NEXO_BACKEND=window.NEXO_BACKEND||{url:"",anonKey:""};
 (function(){
 const cfg=window.NEXO_BACKEND;let token="",admin=false,editing=false;
+window.NEXO_ADMIN_TOKEN=()=>admin?token:null;
 const ready=()=>/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(cfg.url||"")&&!!cfg.anonKey;
 const endpoint=()=>cfg.url.replace(/\/$/,"");
 const escapeHTML=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -629,11 +630,11 @@ renderStudio=function(){
  if(input.files.length){
  e.stopImmediatePropagation();
  if(!window.nexoVerifiedSources||window.nexoVerifiedSources.some(x=>x.error||x.empty?.length)){
- preview.innerHTML='<div class="nexo-source-check"><h3>Leitura incompleta</h3><p>Um ou mais documentos não foram lidos integralmente. Não é seguro gerar uma revisão afirmando que todas as fontes foram analisadas. Consulte os avisos acima.</p></div>';return;
+ window.NEXO_GENERATE_FROM_SOURCES?.({root,preview,button,sources:window.nexoVerifiedSources});return;
  }
  preview.innerHTML='<div class="nexo-source-check"><h3>Documentos lidos e conferidos</h3><p>A extração textual foi realizada, mas o mecanismo de síntese por IA ainda não está conectado. Não vou substituir a revisão baseada nas fontes por um modelo genérico.</p></div>';return;
  }
  },true);
 };
 })();
-</script></body></html>
+</script><script src="assets/nexo-studio-ai.js"></script></body></html>
