@@ -630,9 +630,9 @@ renderStudio=function(){
  if(input.files.length){
  e.stopImmediatePropagation();
  if(!window.nexoVerifiedSources||window.nexoVerifiedSources.some(x=>x.error||x.empty?.length)){
- window.NEXO_GENERATE_FROM_SOURCES?.({root,preview,button,sources:window.nexoVerifiedSources});return;
+ preview.innerHTML='<div class="nexo-source-check"><h3>Leitura incompleta</h3><p>Existem páginas não legíveis ou arquivos com erro. Não é seguro gerar uma revisão com essas fontes.</p></div>';return;return;
  }
- preview.innerHTML='<div class="nexo-source-check"><h3>Documentos lidos e conferidos</h3><p>A extração textual foi realizada, mas o mecanismo de síntese por IA ainda não está conectado. Não vou substituir a revisão baseada nas fontes por um modelo genérico.</p></div>';return;
+ window.NEXO_GENERATE_FROM_SOURCES?.({root,preview,button,sources:window.nexoVerifiedSources});return;
  }
  },true);
 };
