@@ -15,6 +15,7 @@ serve(async req => {
  const {data:admin,error:adminError}=await db.from("nexo_admins").select("user_id").eq("user_id",user.id).maybeSingle();
  if(adminError||!admin) return reply({error:"Acesso administrativo negado"},403);
  const body=await req.json();
+ if(body.action==="status") return reply({ok:true,admin:true});
  if(body.action==="delete"){
   const id=String(body.id||"");if(!/^[0-9a-f-]{36}$/i.test(id)) return reply({error:"ID inválido"},400);
   const {data:record}=await db.from("nexo_lesson_images").select("*").eq("id",id).maybeSingle();
