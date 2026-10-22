@@ -5,6 +5,7 @@ alter table public.nexo_admins enable row level security;
 create table if not exists public.nexo_lesson_images (
  id uuid primary key default gen_random_uuid(),
  lesson_index integer not null check (lesson_index between 0 and 1000),
+ section_index integer check (section_index between 0 and 1000),
  image_url text not null,
  prompt text not null,
  alt_text text not null,
@@ -19,3 +20,6 @@ on conflict (id) do nothing;
 -- Não conceder INSERT/UPDATE/DELETE públicos. Apenas a função protegida, com service_role.
 -- Após criar sua conta no Supabase Auth, cadastrar exclusivamente o UUID autorizado:
 -- insert into public.nexo_admins(user_id) values ('UUID-DA-CONTA-AUTORIZADA');
+
+-- Atualização para instalações que já executaram a migração anterior:
+alter table public.nexo_lesson_images add column if not exists section_index integer;
