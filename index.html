@@ -360,4 +360,100 @@ const videos=root.querySelectorAll(".nexo-video");
 videos.forEach(v=>{const t=v.querySelector("h3");if(t)t.textContent=t.textContent.replace(/Videoaula complementar/i,"Vídeo explicativo curto").replace(/Videoaula/i,"Vídeo explicativo");});
 };
 })();
+</script><style id="nexo-secure-images-style">
+.nexo-access-entry{display:block;width:100%;border:0;background:none;color:#9382a7;font-size:12px;text-align:left;padding:10px 14px;margin-top:25px}
+.nexo-access-entry:hover{color:#d5b6ff}
+.nexo-admin-panel{border:1px solid #796394;background:#31233f;border-radius:17px;padding:20px;margin:20px 0}
+.nexo-admin-panel h3{margin:0 0 12px}
+.nexo-admin-panel textarea,.nexo-admin-panel input{width:100%;padding:12px;margin:7px 0 13px;background:#21172f;border:1px solid #80699a;border-radius:10px;color:white;font:inherit}
+.nexo-admin-panel textarea{min-height:125px;resize:vertical}
+.nexo-admin-panel button,.nexo-access-dialog button{padding:11px 16px;border-radius:10px;border:1px solid #c4a1ff;background:#c4a1ff;color:#21172f;font-weight:700}
+.nexo-admin-panel button:disabled{opacity:.6;cursor:wait}
+.nexo-image-grid{display:grid;gap:18px;margin:22px 0}
+.nexo-image-grid figure{margin:0;overflow:hidden;border-radius:17px;background:#332640;border:1px solid #6c5584}
+.nexo-image-grid img{width:100%;display:block;height:auto;object-fit:contain;background:#f5f1fc}
+.nexo-image-grid figcaption{padding:13px 16px;color:#e7dcf2;line-height:1.55}
+.nexo-image-grid .nexo-image-delete{margin:0 16px 14px;background:transparent;color:#ffbdc9;border:1px solid #ab7482;border-radius:9px;padding:8px 12px}
+.nexo-access-dialog{max-width:430px;width:calc(100% - 32px);border:1px solid #796394;border-radius:20px;background:#2c213d;color:white;padding:24px}
+.nexo-access-dialog::backdrop{background:#090512c9}
+.nexo-access-dialog input{display:block;width:100%;padding:12px;background:#21172f;color:white;border:1px solid #796394;border-radius:10px;margin:12px 0}
+.nexo-access-dialog .nexo-dialog-close{background:transparent;color:#d5b6ff;margin-left:10px}
+.nexo-admin-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:8px 0 15px}
+.nexo-admin-toolbar button{background:#48345d;color:white;border:1px solid #9275b0;padding:9px 12px;border-radius:10px}
+.nexo-admin-status{color:#d5b6ff;font-size:13px}
+@media print{.nexo-admin-panel,.nexo-admin-toolbar,.nexo-access-entry,.nexo-image-delete{display:none!important}}
+</style>
+<script id="nexo-secure-images-client">
+/* Configuração pública, nunca inserir service_role ou OPENAI_API_KEY no navegador.
+   Substituir somente SUPABASE_URL e SUPABASE_ANON_KEY após provisionar backend. */
+window.NEXO_BACKEND=window.NEXO_BACKEND||{url:"",anonKey:""};
+(function(){
+const cfg=window.NEXO_BACKEND;let token="",admin=false,editing=false;
+const ready=()=>/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(cfg.url||"")&&!!cfg.anonKey;
+const endpoint=()=>cfg.url.replace(/\/$/,"");
+const escapeHTML=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const call=async(action,data={})=>{
+ const response=await fetch(endpoint()+"/functions/v1/nexo-images",{method:"POST",headers:{"apikey":cfg.anonKey,"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({action,...data})});
+ const json=await response.json().catch(()=>({error:"Resposta inválida"}));
+ if(!response.ok)throw Error(json.error||"Operação não autorizada");
+ return json;
+};
+const access=document.createElement("button");access.type="button";access.className="nexo-access-entry";access.textContent="Acesso à administração";
+const sidebar=document.querySelector(".sidebar");if(sidebar)sidebar.append(access);
+const dialog=document.createElement("dialog");dialog.className="nexo-access-dialog";dialog.innerHTML='<h2>Acesso restrito</h2><p>Entre com sua conta administrativa para gerenciar imagens. Visitantes não podem publicar conteúdo.</p><form method="dialog" id="nexo-admin-login"><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button><button type="button" class="nexo-dialog-close">Cancelar</button><p role="status" id="nexo-login-status"></p></form>';
+document.body.append(dialog);
+dialog.querySelector(".nexo-dialog-close").onclick=()=>dialog.close();
+access.onclick=()=>{if(admin){editing=!editing;access.textContent=editing?"Desativar administração":"Ativar administração";renderLessonsIfOpen()}else dialog.showModal()};
+const renderLessonsIfOpen=()=>{if(document.getElementById("reading-area"))renderLessons()};
+dialog.querySelector("form").onsubmit=async e=>{
+ e.preventDefault();const status=dialog.querySelector("#nexo-login-status");
+ if(!ready()){status.textContent="A autenticação segura ainda precisa ser configurada no servidor.";return}
+ const form=e.currentTarget;
+ try{
+ status.textContent="Verificando acesso...";
+ const res=await fetch(endpoint()+"/auth/v1/token?grant_type=password",{method:"POST",headers:{"apikey":cfg.anonKey,"Content-Type":"application/json"},body:JSON.stringify({email:form.email.value,password:form.password.value})});
+ const data=await res.json();if(!res.ok||!data.access_token)throw Error("E-mail ou senha inválidos");
+ token=data.access_token;await call("status");admin=true;editing=true;
+ access.textContent="Desativar administração";form.reset();dialog.close();renderLessonsIfOpen();
+ }catch(err){token="";admin=false;editing=false;status.textContent=err.message||"Acesso negado"}
+};
+async function renderImages(area,idx){
+ if(!ready())return;
+ const mount=document.createElement("section");mount.className="nexo-image-grid";mount.setAttribute("aria-label","Ilustrações da aula");
+ const old=area.querySelector(".nexo-visual-gallery");if(old)old.before(mount);else area.querySelector(".nexo-reading-head")?.after(mount);
+ try{
+ const res=await fetch(endpoint()+"/rest/v1/nexo_lesson_images?select=id,image_url,alt_text,lesson_index&lesson_index=eq."+idx+"&order=created_at.asc",{headers:{"apikey":cfg.anonKey,"Authorization":"Bearer "+cfg.anonKey}});
+ if(!res.ok)throw Error("Falha ao consultar imagens");
+ const records=await res.json();
+ if(!mount.isConnected)return;
+ if(records.length){
+ if(old)old.remove();
+ records.forEach(item=>{
+ const fig=document.createElement("figure"),img=document.createElement("img"),cap=document.createElement("figcaption");
+ img.loading="lazy";img.src=item.image_url;img.alt=item.alt_text;cap.textContent=item.alt_text;fig.append(img,cap);
+ if(admin&&editing){const remove=document.createElement("button");remove.className="nexo-image-delete";remove.textContent="Excluir imagem";remove.onclick=async()=>{if(!confirm("Excluir esta imagem publicada?"))return;remove.disabled=true;try{await call("delete",{id:item.id});fig.remove()}catch(e){alert(e.message);remove.disabled=false}};fig.append(remove)}
+ mount.append(fig);
+ });
+ }else mount.remove();
+ }catch(e){mount.remove()}
+}
+const before=renderLessons;
+renderLessons=function(){
+ before();const area=document.getElementById("reading-area");if(!area)return;
+ const idx=Math.max(0,Number(window.lessonIndex)||0);
+ renderImages(area,idx);
+ if(!(admin&&editing))return;
+ const panel=document.createElement("section");panel.className="nexo-admin-panel";
+ panel.innerHTML='<div class="nexo-admin-toolbar"><span class="nexo-admin-status">Modo administrador ativo · apenas nesta sessão</span><button type="button" class="nexo-mode-off">Voltar ao modo estudo</button><button type="button" class="nexo-logout">Sair da conta</button></div><h3>Gerar imagem para esta aula</h3><p>Descreva a cena, os conceitos e a explicação visual. A imagem será gerada, armazenada e publicada automaticamente nesta aula.</p><form class="nexo-image-form"><label>Descrição detalhada da imagem<textarea name="prompt" required minlength="30" maxlength="2500" placeholder="Ex.: Cena editorial realista comparando a primeira e a segunda tópicas freudianas, com exemplos cotidianos e contraste visual claro."></textarea></label><label>Descrição acessível<input name="alt" required minlength="5" maxlength="240" placeholder="O que a imagem explica?"></label><button type="submit">Gerar e adicionar à aula</button><p role="status" class="nexo-image-status"></p></form>';
+ const gallery=area.querySelector(".nexo-visual-gallery");if(gallery)gallery.before(panel);else area.prepend(panel);
+ panel.querySelector(".nexo-mode-off").onclick=()=>{editing=false;access.textContent="Ativar administração";renderLessonsIfOpen()};
+ panel.querySelector(".nexo-logout").onclick=()=>{token="";admin=false;editing=false;access.textContent="Acesso à administração";renderLessonsIfOpen()};
+ panel.querySelector("form").onsubmit=async e=>{
+ e.preventDefault();const form=e.currentTarget,button=form.querySelector('button[type="submit"]'),status=form.querySelector(".nexo-image-status");
+ button.disabled=true;status.textContent="Gerando e armazenando a ilustração...";
+ try{await call("generate",{lesson_index:idx,prompt:form.elements.prompt.value,alt_text:form.elements.alt.value});status.textContent="Imagem publicada.";renderLessonsIfOpen()}
+ catch(err){status.textContent=err.message||"Falha ao gerar imagem";button.disabled=false}
+ };
+};
+})();
 </script></body></html>
