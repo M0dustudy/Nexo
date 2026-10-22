@@ -30,8 +30,8 @@ serve(async req => {
   return reply({ok:true});
  }
  if(body.action!=="generate") return reply({error:"Ação inválida"},400);
- const lesson=Number(body.lesson_index),prompt=String(body.prompt||"").trim(),alt=String(body.alt_text||"").trim();
- if(!Number.isInteger(lesson)||lesson<0||lesson>1000||prompt.length<30||prompt.length>2500||alt.length<5||alt.length>240) return reply({error:"Dados inválidos"},400);
+ const lesson=Number(body.lesson_index),section=Number(body.section_index),prompt=String(body.prompt||"").trim(),alt=String(body.alt_text||"").trim();
+ if(!Number.isInteger(lesson)||lesson<0||lesson>1000||!Number.isInteger(section)||section<0||section>1000||prompt.length<30||prompt.length>2500||alt.length<5||alt.length>240) return reply({error:"Dados inválidos"},400);
  const key=Deno.env.get("OPENAI_API_KEY");
  if(!key) return reply({error:"Serviço de imagens ainda não configurado"},503);
  const ai=await fetch("https://api.openai.com/v1/images/generations",{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:"gpt-image-1",size:"1536x1024",quality:"high",n:1,prompt:"Ilustração educacional premium para plataforma de estudos NEXO. Sem logotipos. Sem texto ilegível ou afirmações inventadas. Crie uma cena didática rica, visualmente elegante, detalhada e conceitualmente correta, com qualidade editorial profissional. Tema: "+prompt})});
@@ -43,7 +43,7 @@ serve(async req => {
  const {error:uploadError}=await db.storage.from("nexo-lesson-images").upload(path,bytes,{contentType:"image/png",upsert:false});
  if(uploadError) return reply({error:"Falha ao armazenar imagem"},500);
  const {data:publicData}=db.storage.from("nexo-lesson-images").getPublicUrl(path);
- const {data:record,error:insertError}=await db.from("nexo_lesson_images").insert({lesson_index:lesson,image_url:publicData.publicUrl,prompt,alt_text:alt,created_by:user.id}).select().single();
+ const {data:record,error:insertError}=await db.from("nexo_lesson_images").insert({lesson_index:lesson,section_index:section,image_url:publicData.publicUrl,prompt,alt_text:alt,created_by:user.id}).select().single();
  if(insertError){await db.storage.from("nexo-lesson-images").remove([path]);return reply({error:"Falha ao associar imagem à aula"},500)}
  return reply({ok:true,image:record});
  }catch(e){return reply({error:"Erro interno na operação"},500)}
