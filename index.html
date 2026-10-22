@@ -301,4 +301,63 @@ root.querySelectorAll("textarea").forEach(t=>{t.style.height="auto";t.style.heig
 .nexo-answer-key summary{cursor:pointer;font-weight:750}
 .studio-sheet{overflow-wrap:anywhere}
 @media print{body{background:white!important;color:#222!important}.studio-config,.studio-panel-buttons,.navigation,.sidebar,.bottom-nav,.subtle{display:none!important}.studio-grid{display:block!important}.studio-sheet{width:100%!important;max-width:100%!important;box-shadow:none!important;color:#222!important;background:white!important}.nexo-answer-key{display:block!important}.nexo-answer-key:not([open])>*:not(summary){display:block!important}.nexo-print-section{break-before:auto}.nexo-print-question{break-inside:avoid}}
-</style><style id="nexo-discursive-css">.nexo-discursive-answer{display:block;width:100%;min-height:110px;padding:12px;border:1px solid #cbb8dd;border-radius:12px;resize:vertical;background:#fff;color:#21172f;margin:12px 0}@media print{.nexo-discursive-answer{height:110px;border:1px solid #888}}</style></body></html>
+</style><style id="nexo-discursive-css">.nexo-discursive-answer{display:block;width:100%;min-height:110px;padding:12px;border:1px solid #cbb8dd;border-radius:12px;resize:vertical;background:#fff;color:#21172f;margin:12px 0}@media print{.nexo-discursive-answer{height:110px;border:1px solid #888}}</style><style id="nexo-learning-polish-20261022">
+/* Uma aula por vez: sem carrossel horizontal redundante */
+.nexo-lesson-strip{display:none!important}
+.nexo-reading-nav{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;max-width:100%;overflow:visible!important}
+.nexo-reading-nav button{min-width:0;white-space:normal!important;overflow-wrap:anywhere}
+.nexo-reading-nav-bottom{margin-top:24px}
+.nexo-quiz-check{display:none!important}
+.nexo-quiz-options{display:grid;gap:10px}
+.nexo-quiz-options label{display:block;cursor:pointer;border:1px solid #79638f;border-radius:13px;background:#352744;padding:0;transition:background .15s,border-color .15s}
+.nexo-quiz-options label span{display:block;padding:14px 16px}
+.nexo-quiz-options label.nexo-correct{border-color:#49c78a!important;background:#174b3b!important;color:#f0fff7!important}
+.nexo-quiz-options label.nexo-incorrect{border-color:#f07b89!important;background:#642b3c!important;color:#fff1f2!important}
+.nexo-quiz-options label.nexo-answered{cursor:default}
+.nexo-quiz-feedback{padding:14px 16px;border-radius:12px;margin-top:12px;background:#382c4a;border:1px solid #6f5b87;line-height:1.6}
+#nexo-resume{border:1px solid #d5b6ff!important;background:#c4a1ff!important;color:#21172f!important;box-shadow:none!important;font-weight:800!important}
+#nexo-resume:focus-visible,.nexo-course-item:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.nexo-video{margin-top:22px}
+.nexo-video h3{margin-bottom:12px}
+.nexo-video iframe{width:100%;max-width:100%;aspect-ratio:16/9;height:auto;border:0;border-radius:14px}
+@media(max-width:480px){.nexo-reading-nav{grid-template-columns:1fr 1fr!important}.nexo-reading-nav>span{grid-column:1/-1;grid-row:1;text-align:center}.nexo-reading-nav button{font-size:13px;padding:11px 8px}.nexo-reading-nav button[data-nexo-units]{grid-column:1/-1}}
+</style>
+<script id="nexo-learning-polish-behavior-20261022">
+(function(){
+const prev=renderLessons;
+renderLessons=function(){
+prev();
+const root=document.getElementById("reading-area");if(!root)return;
+root.querySelectorAll(".nexo-lesson-strip").forEach(e=>e.remove());
+root.querySelectorAll(".nexo-quickquiz").forEach(block=>{
+const options=[...block.querySelectorAll('.nexo-quiz-options input[type="radio"]')];
+const button=block.querySelector(".nexo-quiz-check");
+if(button)button.remove();
+const feedback=block.querySelector(".nexo-quiz-feedback");
+const idx=Number(window.lessonIndex)||0;
+const q=questionBank.find(x=>x.topic===idx);
+if(!q||!feedback)return;
+let locked=false;
+options.forEach(input=>{
+input.onchange=function(){
+if(locked)return;locked=true;
+const selected=Number(input.value),correct=Number(q.correct);
+options.forEach(opt=>{
+opt.disabled=true;
+const label=opt.closest("label");
+if(!label)return;
+label.classList.add("nexo-answered");
+if(Number(opt.value)===correct)label.classList.add("nexo-correct");
+else if(Number(opt.value)===selected)label.classList.add("nexo-incorrect");
+});
+feedback.hidden=false;
+feedback.innerHTML='<strong>'+(selected===correct?'Você acertou!':'Ainda não. Veja a resposta correta destacada em verde.')+'</strong><div>'+studioSafe(q.why)+'</div>';
+if(typeof nexoQuickAnswers!=="undefined")nexoQuickAnswers[idx]={selected:selected,correct:selected===correct};
+};
+});
+});
+const videos=root.querySelectorAll(".nexo-video");
+videos.forEach(v=>{const t=v.querySelector("h3");if(t)t.textContent=t.textContent.replace(/Videoaula complementar/i,"Vídeo explicativo curto").replace(/Videoaula/i,"Vídeo explicativo");});
+};
+})();
+</script></body></html>
