@@ -100,7 +100,7 @@ function draw(){
  el.addEventListener("drop",e=>{const a=e.dataTransfer.getData("text/nexo-unit");if(a!==""){e.preventDefault();swap(units,+a,i)}});
  el.querySelectorAll("[data-block]").forEach(block=>{
  const j=+block.dataset.block;block.querySelector("[data-btoggle]").onclick=()=>{expandedBlock=expandedBlock===j?-1:j;draw()};dragSort(block.querySelector("[data-bhandle]"),units[i].blocks,j,"[data-block]");
- const obj=units[i].blocks[j];obj.fields=fields(obj);block.querySelectorAll("[data-field-index]").forEach(fel=>{const k=+fel.dataset.fieldIndex;fel.querySelector("[data-fvalue]")?.addEventListener("input",e=>{obj.fields[k].value=e.target.value;syncLegacy(obj);mark()});fel.querySelector("[data-fdelete]").onclick=()=>{if(!confirm("Excluir este campo?"))return;obj.fields.splice(k,1);syncLegacy(obj);mark();draw()};dragSort(fel.querySelector("[data-fhandle]"),obj.fields,k,"[data-field-index]");fel.querySelector("[data-fupload]")?.addEventListener("change",e=>uploadField(e.target.files?.[0],i,j,k,fel.querySelector(".nexo-upload-status")))});for(const type of ["title","text","image"]){block.querySelector("[data-f"+type+"]").onclick=()=>{obj.fields.push({type,value:""});syncLegacy(obj);mark();draw()}};
+ const obj=units[i].blocks[j];obj.fields=fields(obj);block.querySelectorAll("[data-field-index]").forEach(fel=>{const k=+fel.dataset.fieldIndex;fel.querySelector("[data-fvalue]")?.addEventListener("input",e=>{obj.fields[k].value=e.target.value;syncLegacy(obj);mark()});fel.querySelector("[data-fdelete]").onclick=()=>{if(!confirm("Excluir este campo?"))return;obj.fields.splice(k,1);syncLegacy(obj);mark();draw()};dragSort(fel.querySelector("[data-fhandle]"),obj.fields,k,"[data-field-index]");fel.querySelector("[data-fupload]")?.addEventListener("change",e=>uploadField(e.target.files?.[0],i,j,k,fel.querySelector(".nexo-upload-status")))});for(const type of ["title","text","image"]){const addFieldButton=block.querySelector("[data-f"+type+"]");if(!addFieldButton)continue;addFieldButton.onclick=()=>{obj.fields.push({type,value:""});syncLegacy(obj);mark();draw()}};
  
  
  block.querySelector("[data-bdelete]").onclick=()=>{if(confirm("Excluir este assunto?")){units[i].blocks.splice(j,1);mark();draw()}};
@@ -126,7 +126,7 @@ async function publish(){
  const status=dlg.querySelector("#nexo-editor-status"),jwt=token();if(!jwt){status.textContent="Faça login novamente.";return}
  const btn=dlg.querySelector("[data-save]");btn.disabled=true;status.textContent="Publicando...";
  try{const r=await fetch(api+"?on_conflict=content_key",{method:"POST",headers:{"apikey":cfg.anonKey,"Authorization":"Bearer "+jwt,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({content_key:"psicanalise",payload:{units}})});
- if(!r.ok)throw Error((await r.text()).slice(0,250));dirty=false;status.textContent="Publicado! Conteúdo e imagens disponíveis para leitores.";apply()
+ if(!r.ok)throw Error((await r.text()).slice(0,250));dirty=false;status.textContent="Publicado! Conteúdo e imagens disponíveis para leitores.";try{apply()}catch(renderError){console.error("NEXO: atualização da leitura após publicação",renderError);status.textContent="Publicado com sucesso. Atualize a página para visualizar."}
  }catch(e){status.textContent="Erro ao publicar: "+e.message}finally{btn.disabled=false}
 }
 const button=document.createElement("button");button.className="nexo-edit-launch";button.type="button";button.textContent="✎ Editar esta disciplina";button.onclick=open;document.body.append(button);
